@@ -1,0 +1,14 @@
+---
+title: "About"
+author: "Nicole Norelli"
+date: "11/3/2020"
+output: html_document
+---
+
+# About
+## Name: Nicole Norelli
+## MSDS Student at SMU
+## From: Wisconsin
+## Interests: Running, Cooking, Painting, Reading, Gardening, Travel
+
+The other tabs represent work that I have completed.  Please check them out!
