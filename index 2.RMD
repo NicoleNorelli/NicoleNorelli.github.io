@@ -1,8 +1,0 @@
----
-title: "Index"
-author: "Nicole Norelli"
-date: "11/3/2020"
-output: html_document
----
-
-# Website for Unit 12
