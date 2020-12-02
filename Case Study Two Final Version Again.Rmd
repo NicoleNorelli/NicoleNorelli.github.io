@@ -1,0 +1,394 @@
+---
+title: "DDS Analytics"
+author: "Nicole Norelli"
+date: "11/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE, error=FALSE)
+```
+
+# DDS Analytics
+## Talent Management Solutions
+## Frito Lay Attrition, Salary, and Job Roles
+
+## Executive Summary
+### EDA conclusions:  Overtime, monthly income, stock option, job involvement, and years in current role were most useful for predicting attrition
+### Two Naive Bayes attrition prediction models (different options depending on intended use)
+### One regression monthly income prediction model using job level, role, and total working years
+### Additional observations regarding sales representatives, stock options, and high potential employees
+
+[Presentation](https://youtu.be/yCsPpiVzZKQ)
+
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(plotly)
+library(viridis)
+library(corrplot)
+library(class)
+library(caret)
+library(e1071)
+library(Boruta)
+attrition = read.csv("/Users/nicolenorelli/Documents/DS6306/6306 Case Study 2/CaseStudy2-data.csv",header = TRUE, stringsAsFactors = TRUE)
+#choose CaseStudy2-data.csv
+```
+
+
+## EDA
+### Visualization of Factors Associated with Attrition
+```{r}
+attrition %>% ggplot(aes(x=Attrition,fill=OverTime)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + 
+  ggtitle("Proportion of Retained/Separated Employees Who Worked Overtime") +
+  ylab("Proportion")
+test1 = chisq.test(table(attrition$OverTime,attrition$Attrition))
+test1
+test1$expected
+test1$observed
+attrition %>% ggplot(aes(x=MonthlyIncome,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Monthly Income") +
+  ggtitle("Monthly Income by Attrition")
+t.test(MonthlyIncome~Attrition,data=attrition,var.equal=T)
+attrition %>% ggplot(aes(x=JobInvolvement,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.20,end=.60) + 
+  ggtitle("Proportion of Retained/Separated Employees by Job Involvement") +
+  ylab("Proportion") + xlab("Job Involvement")
+attrition %>% ggplot(aes(x=YearsInCurrentRole,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Years in Current Role") +
+  ggtitle("Years in Current Role by Attrition")
+t.test(YearsInCurrentRole~Attrition,data=attrition,var.equal=T)
+attrition %>% ggplot(aes(x=JobRole,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d() + 
+  ggtitle("Proportion of Retained/Separated Employees by Job Role") +
+  ylab("Proportion") + xlab("Job Role") + coord_flip()
+```
+
+### Employees who leave are more likely to:
+#### (Top three factors)
+#### Work overtime  (X(1) = 62.76, p<.0001)
+#### Have lower monthly income (t = 4.62, p<.0001)
+#### Have lower job involvement scores
+#### Also:
+#### Have spent less time in their current role (t = 4.45, p<.0001)
+#### Be in a Sales Rep, HR, or Lab Tech job role
+
+
+### Additional promising variables with respect to attrition:
+```{r}
+attrition %>% ggplot(aes(x=MaritalStatus,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Marital Status") +
+  ggtitle("Marital Status by Attrition")
+attrition %>% ggplot(aes(x=Age,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + ggtitle("Age by Attrition")
+attrition %>% ggplot(aes(x=WorkLifeBalance,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Work Life Balance") +
+  ggtitle("Work Life Balance by Attrition")
+attrition %>% ggplot(aes(x=YearsAtCompany,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Years At Company") +
+  ggtitle("Years At Company by Attrition")
+attrition %>% ggplot(aes(x=YearsWithCurrManager,fill=Attrition)) + geom_boxplot() + scale_fill_viridis_d(begin=.5, end=.9) + xlab("Years with Current Manager") +
+  ggtitle("Years with Current Manager by Attrition")
+attrition %>% ggplot(aes(x=StockOptionLevel,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Stock Option Level") +
+  ggtitle("Stock Option Level by Attrition")
+attrition %>% ggplot(aes(x=TotalWorkingYears,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Total Working Years") +
+  ggtitle("Total Working Years by Attrition")
+attrition %>% ggplot(aes(x=JobLevel,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Job Level") +
+  ggtitle("Job Level by Attrition")
+attrition %>% ggplot(aes(x=DistanceFromHome,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Distance From Home") +
+  ggtitle("Distance from Home by Attrition")
+attrition %>% ggplot(aes(x=EnvironmentSatisfaction,fill=Attrition)) + 
+  geom_bar(position="fill") + scale_fill_viridis_d(begin=.5, end=.9) + 
+  xlab("Environment Satisfaction") + ggtitle("Environment Satisfaction by Attrition")
+```
+
+### Employees who leave are more likely to:
+#### Be Single
+#### Be Younger
+#### Report worse (1) work life balance
+#### Have less years at the company
+#### Have less time with their current manager
+#### Take stock options 0 and 3
+#### Have less total working years
+#### Have the lowest job level
+#### Be further from home
+#### Be less satisfied with their environment
+
+### Variables with less difference in attrition rate:
+```{r}
+attrition %>% ggplot(aes(x=EducationField,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + xlab("Education Field") +
+  ggtitle("Proportion of Retained/Separated Employees by Education Field") +
+  ylab("Proportion")
+attrition %>% ggplot(aes(x=JobSatisfaction,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + 
+  ggtitle("Proportion of Retained/Separated Employees by Job Satisfaction") +
+  ylab("Proportion")
+attrition %>% ggplot(aes(x=NumCompaniesWorked,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.25,end=.75) + xlab("Number of Companies Worked") +
+  ggtitle("Number of Companies worked by Attrition")
+attrition %>% ggplot(aes(x=Education,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.25,end=.75) + ggtitle("Education by Attrition")
+attrition %>% ggplot(aes(x=YearsSinceLastPromotion,fill=Attrition)) + geom_boxplot() +
+   scale_fill_viridis_d(begin=.25,end=.75) + xlab("Years Since Last Promotion") +
+  ggtitle("Years Since Last Promotion by Attrition")
+attrition %>% ggplot(aes(x=BusinessTravel,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + xlab("Business Travel") +
+  ggtitle("Business Travel by Attrition")
+attrition %>% ggplot(aes(x=RelationshipSatisfaction,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + xlab("Relationship Satisfaction") +
+  ggtitle("Relationship Satisfaction by Attrition")
+attrition %>% ggplot(aes(x=TrainingTimesLastYear,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + xlab("Training Times Last Year") +
+  ggtitle("Training Times Last Year by Attrition")
+attrition %>% ggplot(aes(x=Department,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.25,end=.75) + ggtitle("Department by Attrition")
+invisible(attrition %>% group_by(Department) %>% count(JobRole))
+```
+
+### Employees who separate are more likely:
+#### To have an education in HR, Marketing, or a Technical degree
+#### Report less job satisfaction
+#### Have more business travel
+#### Work in the sales department
+
+### Variables without much difference in attrition rate:
+```{r}
+attrition %>% ggplot(aes(x=HourlyRate,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Hourly Rate") +
+  ggtitle("Hourly Rate by Attrition")
+attrition %>% ggplot(aes(x=DailyRate,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Daily Rate") +
+  ggtitle("Daily Rate by Attrition")
+attrition %>% ggplot(aes(x=MonthlyRate,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Monthly Rate") +
+  ggtitle("Monthly Rate by Attrition")
+attrition %>% ggplot(aes(x=PercentSalaryHike,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Percent Salary Hike") +
+  ggtitle("Percent Salary Hike by Attrition")
+attrition %>% ggplot(aes(x=PerformanceRating,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Performance Rating") +
+  ggtitle("Performance Rating by Attrition")
+attrition %>% ggplot(aes(x=Gender,fill=Attrition)) + geom_bar(position="fill") +
+  scale_fill_viridis_d(begin=.5, end=.9) + ggtitle("Gender by Attrition")
+attrition %>% ggplot(aes(x=EmployeeNumber,fill=Attrition)) + geom_boxplot() +
+  scale_fill_viridis_d(begin=.5, end=.9) + xlab("Employee Number") +
+  ggtitle("Employee Number by Attrition")
+invisible(summary(attrition$StandardHours))
+invisible(summary(attrition$Over18))
+invisible(summary(attrition$EmployeeCount))
+```
+
+### Variables that do not appear helpful for predicting attrition:
+#### Hourly Rate, Daily Rate, Monthly Rate, Percent Salary Hike, Performance Rating
+#### Gender, Employee Number, Standard Hours, Over 18, Employee Count, ID
+
+### Examine correlations among quantitative variables:
+```{r}
+NumAttrition = attrition %>% select(Age,DailyRate, DistanceFromHome, Education, 
+                                    EnvironmentSatisfaction, HourlyRate,
+                                    JobInvolvement, JobLevel, JobSatisfaction, 
+                                    MonthlyIncome, MonthlyRate,
+                                    NumCompaniesWorked,PercentSalaryHike, 
+                                    PerformanceRating, RelationshipSatisfaction,
+                                    StockOptionLevel,TotalWorkingYears, TrainingTimesLastYear,
+                                    WorkLifeBalance,YearsAtCompany,
+                                    YearsInCurrentRole, YearsSinceLastPromotion,
+                                    YearsWithCurrManager)
+NumAttritionCor = cor(NumAttrition)
+corrplot(NumAttritionCor,tl.cex=.6)
+```
+
+## Building a Model to Predict Attrition
+### Exclude:
+#### Hourly Rate, Daily Rate, Monthly Rate, Percent Salary Hike, Performance Rating, Gender, Employee Number, Standard Hours, Over 18, Employee Count, and ID, as they have little or no difference in attrition
+### Reduce number of predictors:
+#### From the EDA, Education, Education Field, Years Since Last Promotion, Relationship Satisfaction, Job Satisfaction, and Department appear to have less potential for predicting attrition.
+#### Although years with current manager, in current role, and at company all share noticable correlation with each other, removing any of them worsened the model predictions.
+
+
+### Feature Selection Algorithm
+```{r}
+boruta.train = Boruta(Attrition~.,data=attrition)
+print(boruta.train)
+plot(boruta.train, xlab= "", xaxt="n")
+lz<-lapply(1:ncol(boruta.train$ImpHistory),function(i)
+  boruta.train$ImpHistory[is.finite(boruta.train$ImpHistory[,i]),i])
+names(lz) <- colnames(boruta.train$ImpHistory)
+Labels <- sort(sapply(lz,median))
+axis(side = 1,las=2,labels = names(Labels),
+       at = 1:ncol(boruta.train$ImpHistory), cex.axis = 0.7)
+```
+
+#### A random forest feature selection algorithm (Boruta) was then used to suggest additional variables to exclude from the final model.
+#### At this point, I used trial and error to decide on the final predictors to include in the models.
+
+#### Possible NB Models for Attrition
+```{r}
+iterations = 100
+
+masterAcc = matrix(nrow = iterations)
+SensHolder = matrix(nrow = iterations)
+SpecHolder = matrix(nrow = iterations)
+splitPerc = .7 #Training / Test split Percentage
+
+for(j in 1:iterations)
+{
+  
+  trainIndices = sample(1:dim(attrition)[1],round(splitPerc * dim(attrition)[1]))
+  train = attrition[trainIndices,]
+  test = attrition[-trainIndices,]
+  
+  model = naiveBayes(train[,c(24,20,29,30,2,16,33,15,17,36,32,34,22)],train$Attrition)
+  table(predict(model,test[,c(24,20,29,30,2,16,33,15,17,36,32,34,22)]),test$Attrition)
+  CM = confusionMatrix(table(predict(model,test[,c(24,20,29,30,2,16,33,15,17,36,32,34,22)]),test$Attrition))
+  masterAcc[j] = CM$overall[1]
+  SensHolder[j] = CM$byClass[1]
+  SpecHolder[j] = CM$byClass[2]
+}
+
+MeanAcc = colMeans(masterAcc)
+MeanSens = colMeans(SensHolder)
+MeanSpec = colMeans(SpecHolder)
+MeanAcc
+MeanSens #82
+MeanSpec #60
+
+# Downsamping Model tested on unbalanced test set
+iterations = 100
+
+masterAcc = matrix(nrow = iterations)
+SensHolder = matrix(nrow = iterations)
+SpecHolder = matrix(nrow = iterations)
+splitPerc = .7 #Training / Test split Percentage
+
+for(j in 1:iterations)
+{
+  
+  ds = downSample(attrition,attrition$Attrition)
+  trainIn = sample(1:dim(ds)[1],round(splitPerc*dim(ds)[1]))
+  train4 = ds[trainIn,]
+  test4 = ds[-trainIn,]
+  dsrows = c(train4$ID)
+  leftover = attrition[-dsrows,]
+  
+  model = naiveBayes(ds[,c(24,29,15,20,34)],ds$Attrition)
+  table(predict(model,leftover[,c(24,29,15,20,34)]),leftover$Attrition)
+  CM=confusionMatrix(table(predict(model,leftover[,c(24,29,15,20,34)]),leftover$Attrition))
+  masterAcc[j] = CM$overall[1]
+  SensHolder[j] = CM$byClass[1]
+  SpecHolder[j] = CM$byClass[2]
+}
+
+MeanAcc = colMeans(masterAcc)
+MeanSens = colMeans(SensHolder)
+MeanSpec = colMeans(SpecHolder)
+MeanAcc
+MeanSens #68
+MeanSpec #77
+```
+
+### Two models to predict attrition:
+### Naive Bayes model with 13 variables:
+#### Overtime, Monthly Income, Stock Option Level, Job Involvement, Years in Current Role, Total Working Years, Age, Job Level, Years at Company, Job Role, Years with Current Manager, Work Life Balance, Number Companies Worked
+#### Mean sensitivity: 82%
+#### Mean specificity: 60%
+#### Useful if misidentifying retained employees has a high cost
+
+### Naive Bayes model with 5 variables:
+#### As the data set was unbalanced (there was 16% attrition), this model was developed with a downsampling technique that balanced the number of retained and separated employees.  It was then tested on an unbalanced test set to determine how well it will work on real world data that will most likely have more retained than separated employees.
+#### Variables: Overtime, Monthly Income, Stock Option Level, Job Involvement, Years in Current Role
+#### Mean sensitivity: 68%
+#### Mean specificity: 77%
+#### If better prediction of attrition is desirable, and the costs associated with incorrectly identifying retained employees is low, this model is useful.
+
+
+### Monthly Income and Job Level, Job Role, and Total Working Years
+#### A visualization:
+```{r}
+attrition %>% ggplot(aes(x=MonthlyIncome, y=JobLevel,color=MonthlyIncome)) + 
+  geom_point(position="jitter") + geom_smooth(method="lm") + 
+  ggtitle("Monthly Income vs. Job Level") + xlab("Monthly Income") +
+  ylab("Job Level") + scale_color_viridis(option="D",name="Monthly Income")
+attrition %>% ggplot(aes(x=MonthlyIncome, y=JobLevel,color=MonthlyIncome)) + 
+  geom_point(position="jitter") + geom_smooth(method="lm") + 
+  ggtitle("Monthly Income vs. Job Level") + xlab("Monthly Income") +
+  ylab("Job Level") + scale_color_viridis(option="D",name="Monthly Income") + 
+  facet_wrap(~JobRole)
+attrition %>% ggplot(aes(x=MonthlyIncome, y=TotalWorkingYears,color=MonthlyIncome)) + 
+  geom_point(position="jitter") + geom_smooth(method="lm") + 
+  ggtitle("Monthly Income vs. Total Working Years") + xlab("Monthly Income") +
+  ylab("Total Working Years") + scale_color_viridis(option="D",name="Monthly Income")
+attrition %>% ggplot(aes(x=MonthlyIncome, y=TotalWorkingYears,color=MonthlyIncome)) + 
+  geom_point(position="jitter") + geom_smooth(method="lm") + 
+  ggtitle("Monthly Income vs. Total Working Years") + xlab("Monthly Income") +
+  ylab("Total Working Years") + scale_color_viridis(option="D",name="Monthly Income") +
+  facet_wrap(~JobRole)
+surface_plot <- plot_ly(attrition, 
+                        x = ~JobLevel, 
+                        y = ~JobRole, 
+                        z = ~MonthlyIncome,
+                        text = "z", 
+                        type = "scatter3d",
+                        mode = "markers")
+
+surface_plot
+```
+
+### Previous correlation plot showed monthly income strongly correlated with:
+#### Job Level, followed by Total Working Years
+#### These two variables show a linear relationship with monthly income.
+#### The addition of Job Role looks like it may improve the prediction, as different jobs have different monthly income ranges.
+
+### Regression Model to Predict Monthly Income
+```{r}
+Model3_fit = lm(MonthlyIncome~JobLevel+JobRole+TotalWorkingYears,data=attrition)
+summary(Model3_fit)
+
+# Average of 1000 RMSE values for model with 75/25 train/test split
+numMSPEs = 1000
+MSPEHolderModel3 = numeric(numMSPEs)
+
+for (i in 1:numMSPEs)
+{
+  TrainObs = sample(seq(1,dim(attrition)[1]),round(.75*dim(attrition)[1]),replace = FALSE)
+  attritionTrain = attrition[TrainObs,]
+  attritionTest = attrition[-TrainObs,]
+  
+  Model3_fit = lm(MonthlyIncome~JobLevel+JobRole+TotalWorkingYears,data=attritionTrain)
+  Model3_Preds = predict(Model3_fit, newdata = attritionTest)
+  MSPE = mean((attritionTest$MonthlyIncome - Model3_Preds)^2)
+  MSPEHolderModel3[i] = MSPE
+}
+
+sqrt(mean(MSPEHolderModel3))
+```
+
+#### The combination of variables in this model explains 95% of the variance in monthly income.
+#### Mean RMSE over 1000 tries: 1067
+
+### Additional observations regarding Job Roles, Over Time, and high potential employees
+```{r}
+attrition %>% ggplot(aes(x=StockOptionLevel,fill=MaritalStatus)) + geom_bar(position="dodge") +
+  scale_fill_viridis_d() + xlab("Stock Option Level") + ggtitle("Stock Option Level by Marital Status")
+p2 = attrition %>% ggplot(aes(x=JobRole, fill=MaritalStatus)) + geom_bar(position="dodge") +
+  scale_fill_viridis_d() + xlab("Job Role") + ggtitle("Job Role and Marital Status")
+p2 + theme(axis.text.x=element_text(angle=45,hjust=1))
+attrition %>% ggplot(aes(x=YearsAtCompany,fill=JobRole)) + geom_boxplot() + scale_fill_viridis_d() + xlab("Years at Company") + 
+  ggtitle("Years at Company by Job Role")
+attrition %>% ggplot(aes(x=TotalWorkingYears,y=factor(JobLevel))) +
+  geom_boxplot(colour="navyblue",fill="slateblue") + geom_jitter(colour="darkgreen") +
+  xlab("Total Working Years") + ylab("Job Level") + 
+  ggtitle("Total Working Years by Job Level")
+```
+
+#### All single employees are in stock option 0.  If this is voluntary, it is worth further examination.  If it is a single employee's only option, is this a policy or an oversight?
+#### Sales Representatives have the shortest mean years at the company (2.9) with 50% between 1-3 years.
+#### There is a strong association between total working years and job level.  It appears as though there are a few long-term level 3 employees.  There are also a few level 4 employees who have less than 20 working years.  This may indicate they are high potential employees.
+
